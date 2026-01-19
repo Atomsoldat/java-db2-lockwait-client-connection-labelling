@@ -96,7 +96,9 @@ public class DemoService {
         }
 
         long duration = System.currentTimeMillis() - startTime;
-        log.info("Performance test completed in {} ms", duration);
+        double avg_latency = (double) duration / iterations * 1000;
+        String message = String.format("Performance test completed in %d ms; average latency: %.2f us", duration, avg_latency);
+        log.info(message);
 
         return duration;
     }

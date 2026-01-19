@@ -9,8 +9,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
-import javax.sql.DataSource;
-
 @Configuration
 public class DataSourceConfig {
 
@@ -27,7 +25,7 @@ public class DataSourceConfig {
 
     @Bean
     @Primary
-    public DataSource dataSource(HikariDataSource hikariDataSource) {
+    public Db2AccountingDataSource dataSource(HikariDataSource hikariDataSource) {
         return new Db2AccountingDataSource(hikariDataSource, accountingEnabled);
     }
 }

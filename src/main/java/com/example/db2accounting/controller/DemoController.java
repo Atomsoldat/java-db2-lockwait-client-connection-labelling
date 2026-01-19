@@ -1,5 +1,6 @@
 package com.example.db2accounting.controller;
 
+import com.example.db2accounting.datasource.Db2AccountingDataSource;
 import com.example.db2accounting.service.DemoService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,9 +14,11 @@ import java.util.Map;
 public class DemoController {
 
     private final DemoService demoService;
+    private final Db2AccountingDataSource dataSource;
 
-    public DemoController(DemoService demoService) {
+    public DemoController(DemoService demoService, Db2AccountingDataSource dataSource) {
         this.demoService = demoService;
+        this.dataSource = dataSource;
     }
 
     @GetMapping("/client-info")
@@ -43,6 +46,15 @@ public class DemoController {
         return Map.of(
             "holdSeconds", seconds,
             "actualMs", System.currentTimeMillis() - start
+        );
+    }
+
+    @GetMapping("/toggle")
+    public Map<String, Object> toggle(@RequestParam boolean enabled) {
+        dataSource.setEnabled(enabled);
+        return Map.of(
+            "enabled", dataSource.isEnabled(),
+            "message", "Accounting " + (enabled ? "enabled" : "disabled")
         );
     }
 }

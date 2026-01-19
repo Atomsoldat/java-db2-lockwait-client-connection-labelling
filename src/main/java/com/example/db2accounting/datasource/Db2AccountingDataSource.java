@@ -12,12 +12,20 @@ import java.sql.SQLException;
 public class Db2AccountingDataSource implements DataSource {
 
     private final DataSource delegate;
-    private final boolean enabled;
+    private volatile boolean enabled;
 
     private static final StackWalker STACK_WALKER = StackWalker.getInstance();
 
     public Db2AccountingDataSource(DataSource delegate, boolean enabled) {
         this.delegate = delegate;
+        this.enabled = enabled;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }
 
@@ -39,18 +47,12 @@ public class Db2AccountingDataSource implements DataSource {
         return connection;
     }
 
+    // https://www.ibm.com/docs/en/db2/11.5.x?topic=jies-providing-extended-client-information-data-source-client-info-properties
     private void setClientInfo(Connection connection) throws SQLException {
         String caller = findCaller();
-
-        // https://www.ibm.com/docs/en/db2/11.5.x?topic=routines-wlm-set-client-info-set-client-information
-        try (var stmt = connection.prepareCall("CALL SYSPROC.WLM_SET_CLIENT_INFO(?, ?, ?, ?, ?)")) {
-            stmt.setNull(1, java.sql.Types.VARCHAR);  // client_userid
-            stmt.setNull(2, java.sql.Types.VARCHAR);  // client_wrkstnname
-            stmt.setString(3, caller);                 // client_applname
-            stmt.setString(4, caller);                 // client_acctng
-            stmt.setNull(5, java.sql.Types.VARCHAR);  // client_programid
-            stmt.execute();
-        }
+        connection.setClientInfo("ApplicationName", "Example Application");
+        connection.setClientInfo("ClientAccountingInformation", caller);
+        connection.setClientInfo("ClientUser", "Albus Dumbledore");
     }
 
     private String findCaller() {
