@@ -1,0 +1,109 @@
+package com.example.db2accounting.datasource;
+
+import javax.sql.DataSource;
+import java.io.PrintWriter;
+import java.sql.Connection;
+import java.sql.SQLException;
+
+/**
+ * A DataSource wrapper that sets DB2 CLIENT_ACCTING and CLIENT_APPLNAME
+ * special registers on each connection request.
+ */
+public class Db2AccountingDataSource implements DataSource {
+
+    private final DataSource delegate;
+    private final boolean enabled;
+
+    private static final StackWalker STACK_WALKER = StackWalker.getInstance();
+
+    public Db2AccountingDataSource(DataSource delegate, boolean enabled) {
+        this.delegate = delegate;
+        this.enabled = enabled;
+    }
+
+    @Override
+    public Connection getConnection() throws SQLException {
+        Connection connection = delegate.getConnection();
+        if (enabled) {
+            setClientInfo(connection);
+        }
+        return connection;
+    }
+
+    @Override
+    public Connection getConnection(String username, String password) throws SQLException {
+        Connection connection = delegate.getConnection(username, password);
+        if (enabled) {
+            setClientInfo(connection);
+        }
+        return connection;
+    }
+
+    private void setClientInfo(Connection connection) throws SQLException {
+        String caller = findCaller();
+
+        // https://www.ibm.com/docs/en/db2/11.5.x?topic=routines-wlm-set-client-info-set-client-information
+        try (var stmt = connection.prepareCall("CALL SYSPROC.WLM_SET_CLIENT_INFO(?, ?, ?, ?, ?)")) {
+            stmt.setNull(1, java.sql.Types.VARCHAR);  // client_userid
+            stmt.setNull(2, java.sql.Types.VARCHAR);  // client_wrkstnname
+            stmt.setString(3, caller);                 // client_applname
+            stmt.setString(4, caller);                 // client_acctng
+            stmt.setNull(5, java.sql.Types.VARCHAR);  // client_programid
+            stmt.execute();
+        }
+    }
+
+    private String findCaller() {
+        return STACK_WALKER.walk(frames -> frames
+                .filter(f -> f.getClassName().startsWith("com.example.db2accounting")
+                          && !f.getClassName().contains(".datasource."))
+                .findFirst()
+                .map(f -> extractSimpleName(f.getClassName()) + "." + f.getMethodName())
+                .orElse("Unknown"));
+    }
+
+    private String extractSimpleName(String fullClassName) {
+        int lastDot = fullClassName.lastIndexOf('.');
+        return lastDot >= 0 ? fullClassName.substring(lastDot + 1) : fullClassName;
+    }
+
+    @Override
+    public PrintWriter getLogWriter() throws SQLException {
+        return delegate.getLogWriter();
+    }
+
+    @Override
+    public void setLogWriter(PrintWriter out) throws SQLException {
+        delegate.setLogWriter(out);
+    }
+
+    @Override
+    public void setLoginTimeout(int seconds) throws SQLException {
+        delegate.setLoginTimeout(seconds);
+    }
+
+    @Override
+    public int getLoginTimeout() throws SQLException {
+        return delegate.getLoginTimeout();
+    }
+
+    @Override
+    public java.util.logging.Logger getParentLogger() {
+        try {
+            return delegate.getParentLogger();
+        } catch (Exception e) {
+            return java.util.logging.Logger.getLogger(java.util.logging.Logger.GLOBAL_LOGGER_NAME);
+        }
+    }
+
+    @Override
+    public <T> T unwrap(Class<T> iface) throws SQLException {
+        if (iface.isInstance(this)) return iface.cast(this);
+        return delegate.unwrap(iface);
+    }
+
+    @Override
+    public boolean isWrapperFor(Class<?> iface) throws SQLException {
+        return iface.isInstance(this) || delegate.isWrapperFor(iface);
+    }
+}
