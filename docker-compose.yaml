@@ -1,0 +1,26 @@
+# docker compose automatically creates a docker network where each service name resolves
+# to the respective container's IP
+# hence, we use the name of the db2server service in the db2 connection string of the exporter
+
+services:
+  db2server:
+    image: db2-custom-image
+    container_name: db2server
+    hostname: db2server
+    ports:
+      - "50000:50000"
+    env_file:
+      - env
+    privileged: true
+    volumes:
+      - db-data:/database
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "su - db2inst1 -c \"db2gcf -s\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+volumes:
+  db-data:
