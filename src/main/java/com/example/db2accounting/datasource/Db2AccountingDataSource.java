@@ -1,9 +1,11 @@
 package com.example.db2accounting.datasource;
 
-import javax.sql.DataSource;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLClientInfoException;
+
+import javax.sql.DataSource;
 
 /**
  * A DataSource wrapper that sets DB2 CLIENT_ACCTING and CLIENT_APPLNAME
@@ -11,10 +13,21 @@ import java.sql.SQLException;
  */
 public class Db2AccountingDataSource implements DataSource {
 
+    private static final String BASE_PACKAGE = Db2AccountingDataSource.class.getPackageName().replace(".datasource", "");
+    private static final StackWalker STACK_WALKER = StackWalker.getInstance();
+    private static final String CLIENT_USER = "Albus Dumbledore";
+    private static final String CLIENT_HOSTNAME = resolveHostname();
+
+    private static String resolveHostname() {
+        try {
+            return java.net.InetAddress.getLocalHost().getHostName();
+        } catch (java.net.UnknownHostException e) {
+            return "unknown";
+        }
+    }
+
     private final DataSource delegate;
     private volatile boolean enabled;
-
-    private static final StackWalker STACK_WALKER = StackWalker.getInstance();
 
     public Db2AccountingDataSource(DataSource delegate, boolean enabled) {
         this.delegate = delegate;
@@ -50,23 +63,28 @@ public class Db2AccountingDataSource implements DataSource {
     // https://www.ibm.com/docs/en/db2/11.5.x?topic=jies-providing-extended-client-information-data-source-client-info-properties
     private void setClientInfo(Connection connection) throws SQLException {
         String caller = findCaller();
-        connection.setClientInfo("ApplicationName", "Example Application");
-        connection.setClientInfo("ClientAccountingInformation", caller);
-        connection.setClientInfo("ClientUser", "Albus Dumbledore");
+        try {
+            connection.setClientInfo("ApplicationName", BASE_PACKAGE);
+            connection.setClientInfo("ClientAccountingInformation", caller);
+            connection.setClientInfo("ClientUser", CLIENT_USER);
+            connection.setClientInfo("ClientHostname", CLIENT_HOSTNAME);
+            System.out.println("Set client info: ApplicationName=" + BASE_PACKAGE + ", ClientAccountingInformation=" + caller + ", ClientUser=" + CLIENT_USER + ", ClientHostname=" + CLIENT_HOSTNAME);
+        } catch (SQLClientInfoException e) {
+            System.err.println("Failed to set client info: " + e.getMessage());
+            System.err.println("Failed properties: " + e.getFailedProperties());
+        }
     }
 
     private String findCaller() {
         return STACK_WALKER.walk(frames -> frames
-                .filter(f -> f.getClassName().startsWith("com.example.db2accounting")
+                .filter(f -> f.getClassName().startsWith(BASE_PACKAGE)
                           && !f.getClassName().contains(".datasource."))
                 .findFirst()
-                .map(f -> extractSimpleName(f.getClassName()) + "." + f.getMethodName())
+                .map(f -> {
+                    String relativePath = f.getClassName().substring(BASE_PACKAGE.length() + 1);
+                    return relativePath + "." + f.getMethodName() + ":" + f.getLineNumber();
+                })
                 .orElse("Unknown"));
-    }
-
-    private String extractSimpleName(String fullClassName) {
-        int lastDot = fullClassName.lastIndexOf('.');
-        return lastDot >= 0 ? fullClassName.substring(lastDot + 1) : fullClassName;
     }
 
     @Override
