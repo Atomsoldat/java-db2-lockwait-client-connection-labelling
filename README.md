@@ -60,7 +60,7 @@ db2 CALL MONREPORT.CONNECTION > /tmp/connectionreport.txt
 
 
 
-We can then cross-reference the `APPLICATION_HANDLE` between e.g. the `lockwaitreport.txt` and the `connectionreport.txt`. For some reason, the requestor connection did not show up in my connection report, by the requestor SQL statement can be read from the lockwaitreport. Likewise, the holder statement is not guaranteed to show up in the lockwait report (for example when it is already done executing, but the lock has not been returned). But the holder code line can be read from the client parameters in the `connectionreport.txt`
+We can then cross-reference the `APPLICATION_HANDLE` between e.g. the `lockwaitreport.txt` and the `connectionreport.txt`. For some reason, the requestor connection did not show up in my connection report, but the requestor SQL statement can be read from the `lockwaitreport.txt`. Likewise, the holder statement is not guaranteed to show up in the `lockwaitreport.txt` (for example when it is already done executing, but the lock has not been returned). But the holder code line can be read from the client parameters in the `connectionreport.txt`.
 
 
 
