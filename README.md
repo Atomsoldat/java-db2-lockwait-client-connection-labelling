@@ -1,12 +1,40 @@
 # Idea
 
-What if we could just attach the location of the code using the database connection to our queries?
+What if we could just attach the location of the code using the database connection to our connections/queries, so that we could end up with information like this (note `CLIENT_ACCTNG` and `CLIENT_APPLNAME`)?
 
-https://www.ibm.com/docs/en/db2/11.5.x?topic=pecidscip-client-info-properties-support-by-data-server-driver-jdbc-sqlj#imjcc_r0052001__title__2
+```
+                                                                                  
+  connection #:1                                                                  
+  --------------------------------------------------------------------------------
+                                                                                  
+  --Connection identifiers--                                                      
+  Application identifiers                                                         
+    APPLICATION_HANDLE                = 171                                       
+    APPLICATION_NAME                  = db2jcc_application                        
+    APPLICATION_ID                    = 172.21.0.1.44248.260119214539             
+  Authorization IDs                                                               
+    SYSTEM_AUTHID                     = DB2INST1                                  
+    SESSION_AUTHID                    = DB2INST1                                  
+  Client attributes                                                               
+    CLIENT_ACCTNG                     = service.DemoService.holdLock:113          
+    CLIENT_USERID                     = Albus Dumbledore                          
+    CLIENT_APPLNAME                   = com.example.db2accounting                 
+    CLIENT_WRKSTNNAME                 = ryzenpc                                   
+    CLIENT_PID                        =                                           
+    CLIENT_PRDID                      = JCC04330                                  
+    CLIENT_PLATFORM                   = DRDA                                      
+    CLIENT_PROTOCOL                   = TCPIP4                                    
+  -- Other connection details --                                                  
+  CONNECTION_START_TIME               = 2026-01-19-21.45.39.782768                
+  NUM_LOCKS_HELD                      = 3           
+  ```
 
-https://www.ibm.com/docs/en/db2/11.5.x?topic=jies-providing-extended-client-information-data-source-client-info-properties
+These fields are provided by Db2 for administrative purposes:
 
-# Do the thing
+- https://www.ibm.com/docs/en/db2/11.5.x?topic=pecidscip-client-info-properties-support-by-data-server-driver-jdbc-sqlj#imjcc_r0052001__title__2
+- https://www.ibm.com/docs/en/db2/11.5.x?topic=jies-providing-extended-client-information-data-source-client-info-properties
+
+## Run the example environment
 
 ```bash
 ./build_container.sh
@@ -15,17 +43,10 @@ docker compose up -d
 mvn spring-boot:run
 ```
 
-Execute the following API queries in another shell, while the server runs. The server will log the total duration and average latency to stdout.
-```bash
-curl 'http://localhost:8080/api/client-info'
-curl 'http://localhost:8080/api/performance-test?iterations=10000'
-curl 'http://localhost:8080/api/toggle?enabled=false'
-curl 'http://localhost:8080/api/performance-test?iterations=10000'
-```
 
 
 
-# Lock Analysis
+## Lock Analysis
 
 Execute this in one shell
 ```
@@ -57,8 +78,6 @@ db2 CALL MONREPORT.DBSUMMARY > /tmp/dbsummaryreport.txt
 db2 CALL MONREPORT.CONNECTION > /tmp/connectionreport.txt
 
 ```
-
-
 
 We can then cross-reference the `APPLICATION_HANDLE` between e.g. the `lockwaitreport.txt` and the `connectionreport.txt`. For some reason, the requestor connection did not show up in my connection report, but the requestor SQL statement can be read from the `lockwaitreport.txt`. Likewise, the holder statement is not guaranteed to show up in the `lockwaitreport.txt` (for example when it is already done executing, but the lock has not been returned). But the holder code line can be read from the client parameters in the `connectionreport.txt`.
 
@@ -144,3 +163,21 @@ Example excerpt from connection report
   CONNECTION_START_TIME               = 2026-01-19-21.45.39.782768                
   NUM_LOCKS_HELD                      = 3           
   ```
+
+
+## Performance Analysis
+
+Execute the following API queries in another shell, while the server runs. The server will log the total duration and average latency to stdout. As usual with Java, the JVM has to warm up, so just run it multiple times.
+```bash
+curl 'http://localhost:8080/api/client-info'
+curl 'http://localhost:8080/api/performance-test?iterations=10000'
+```
+
+The addition of the client information can be disabled at runtime
+```bash
+curl 'http://localhost:8080/api/toggle?enabled=false'
+curl 'http://localhost:8080/api/toggle?enabled=true'
+```
+
+
+
